@@ -5,6 +5,14 @@
 # Preview colors with: bash scripts/color-preview.sh
 COLOR="modus"
 
+# Segment icons - swap these for text labels (e.g. E_MODEL="Model:") if your
+# terminal font renders emoji poorly
+E_MODEL="🤖"
+E_THINKING="🧠"
+E_PATH="📁"
+E_BRANCH="🌿"
+E_CONTEXT="🧭"
+
 # Color codes
 # Defaults are 256-color and assume a dark terminal background. A theme may
 # override any of them; anything left unset falls back to the accent color.
@@ -35,15 +43,15 @@ case "$COLOR" in
         # modus-operandi-tinted (Emacs), for a light terminal on bg-main #fbf7f0.
         # Each slot maps to one of the theme's semantic colors:
         #   labels     keyword          blue              #0031a9
-        #   values     fg-main                            #000000
+        #   values     fg-dim                             #595959
         #   separator  border                             #9f9690
         #   branch     name             magenta           #721045
         #   added      fg-added-intense                   #006700
         #   deleted    fg-removed-intense                 #aa2222
         #   bar fill   accent-3/red-warmer/red-intense  orange/red by usage
-        #   bar track  bg-active                          #c9b9b0
+        #   bar track  fg-dim                             #595959
         C_ACCENT='\033[38;2;0;49;169m'
-        C_VALUE='\033[38;2;0;0;0m'
+        C_VALUE='\033[38;2;89;89;89m'
         C_SEP='\033[38;2;159;150;144m'
         C_BRANCH='\033[38;2;114;16;69m'
         C_ADDED='\033[38;2;0;103;0m'
@@ -51,7 +59,7 @@ case "$COLOR" in
         C_BAR_FILL='\033[38;2;137;64;0m'
         C_BAR_WARN='\033[38;2;151;37;0m'
         C_BAR_ERR='\033[38;2;208;0;0m'
-        C_BAR_EMPTY='\033[38;2;201;185;176m'
+        C_BAR_EMPTY='\033[38;2;89;89;89m'
         ;;
     *)        C_ACCENT="$C_VALUE" ;;  # gray: all same color
 esac
@@ -174,25 +182,28 @@ used_display=$(format_tokens "$used")
 ctx="${C_SEP}[$(build_bar "$pct")${C_SEP}]${C_VALUE} ${used_display}/${max_display} (${pct_prefix}${pct}%)"
 ctx_plain="[$(printf '%*s' "$BAR_WIDTH" '' | tr ' ' 'x')] ${used_display}/${max_display} (${pct_prefix}${pct}%)"
 
-# Build output: Model | Thinking | Path | Branch(+added,-deleted) | Context
+# Build output: model | thinking | path | branch(+added,-deleted) | context
 sep="${C_SEP} | "
-output="${C_ACCENT}Model:${C_VALUE} ${model}"
-[[ -n "$effort" ]] && output+="${sep}${C_ACCENT}Thinking:${C_VALUE} ${effort}"
-[[ -n "$dir" ]] && output+="${sep}${C_ACCENT}Path:${C_VALUE} ${dir}"
-[[ -n "$branch" ]] && output+="${sep}${C_BRANCH}⎇ ${branch}${diff_stat}"
-output+="${sep}${C_ACCENT}Context:${C_VALUE} ${ctx}${C_RESET}"
+output="${E_MODEL}${C_VALUE} ${model}"
+[[ -n "$effort" ]] && output+="${sep}${E_THINKING}${C_VALUE} ${effort}"
+[[ -n "$dir" ]] && output+="${sep}${E_PATH}${C_VALUE} ${dir}"
+[[ -n "$branch" ]] && output+="${sep}${E_BRANCH}${C_BRANCH} ${branch}${diff_stat}"
+output+="${sep}${E_CONTEXT}${C_VALUE} ${ctx}${C_RESET}"
 
 printf '%b\n' "$output"
 
 # Get user's last message (text only, not tool results, skip unhelpful messages)
 if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
-    # Calculate visible length (without ANSI codes) - bar chars + content
-    plain_output="Model: ${model}"
-    [[ -n "$effort" ]] && plain_output+=" | Thinking: ${effort}"
-    [[ -n "$dir" ]] && plain_output+=" | Path: ${dir}"
-    [[ -n "$branch" ]] && plain_output+=" | ⎇ ${branch}${diff_plain}"
-    plain_output+=" | Context: ${ctx_plain}"
-    max_len=${#plain_output}
+    # Calculate visible length (without ANSI codes) - bar chars + content.
+    # Emoji count as one character here but take two terminal columns, so add
+    # one column per icon shown.
+    wide=2  # model and context icons are always shown
+    plain_output="${E_MODEL} ${model}"
+    [[ -n "$effort" ]] && { plain_output+=" | ${E_THINKING} ${effort}"; wide=$((wide + 1)); }
+    [[ -n "$dir" ]] && { plain_output+=" | ${E_PATH} ${dir}"; wide=$((wide + 1)); }
+    [[ -n "$branch" ]] && { plain_output+=" | ${E_BRANCH} ${branch}${diff_plain}"; wide=$((wide + 1)); }
+    plain_output+=" | ${E_CONTEXT} ${ctx_plain}"
+    max_len=$((${#plain_output} + wide))
     last_user_msg=$(jq -rs '
         # Messages to skip (not useful as context)
         def is_unhelpful:
