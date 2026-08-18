@@ -210,21 +210,21 @@ test_thinking_from_effort_level() {
     log_test "Thinking effort comes from .effort.level"
     local out
     out=$(render "$(make_payload "${TEST_DIR}" 200000 "" ',"effort":{"level":"medium"}')")
-    assert_contains "$out" "🧠 medium" "Effort level renders"
+    assert_contains "$out" "💭 medium" "Effort level renders"
 }
 
 test_thinking_off_when_disabled() {
     log_test "Thinking shows off when .thinking.enabled is false"
     local out
     out=$(render "$(make_payload "${TEST_DIR}" 200000 "" ',"thinking":{"enabled":false}')")
-    assert_contains "$out" "🧠 off" "Disabled thinking renders as off"
+    assert_contains "$out" "💭 off" "Disabled thinking renders as off"
 }
 
 test_thinking_omitted_when_unknown() {
     log_test "The thinking segment is omitted when the payload says nothing"
     local out
     out=$(render "$(make_payload "${TEST_DIR}")")
-    assert_not_contains "$out" "🧠" "No thinking segment without data"
+    assert_not_contains "$out" "💭" "No thinking segment without data"
 }
 
 # --- context ----------------------------------------------------------------
@@ -347,10 +347,10 @@ test_segment_icons_present() {
     local out
     out=$(render "$(make_payload "$repo" 200000 "" ',"effort":{"level":"high"}')")
     assert_contains "$out" "🤖" "Model icon"
-    assert_contains "$out" "🧠" "Thinking icon"
+    assert_contains "$out" "💭" "Thinking icon"
     assert_contains "$out" "📁" "Path icon"
     assert_contains "$out" "🌿" "Branch icon"
-    assert_contains "$out" "🧭" "Context icon"
+    assert_contains "$out" "🪟" "Context icon"
 }
 
 # --- main -------------------------------------------------------------------

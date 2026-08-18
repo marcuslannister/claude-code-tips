@@ -7,10 +7,10 @@ COLOR="modus"
 # Segment icons - swap these for text labels (e.g. E_MODEL="Model:") if your
 # terminal font renders emoji poorly
 E_MODEL="🤖"
-E_THINKING="🧠"
+E_THINKING="💭"
 E_PATH="📁"
 E_BRANCH="🌿"
-E_CONTEXT="🧭"
+E_CONTEXT="🪟"
 
 # Color codes
 # Defaults are 256-color and assume a dark terminal background. A theme may
