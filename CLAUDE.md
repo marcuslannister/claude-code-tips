@@ -19,3 +19,17 @@ Style (based on my past issues):
 - Bug sections: `## Steps to reproduce`, `## Expected behavior` (+ `## Actual behavior` if useful), `## Environment` (OS, Claude Code version, terminal).
 - Feature requests: `## Problem`, then `## Suggestion` / `## Demonstration`.
 - Show concrete fenced code blocks for actual vs expected. Link relevant scripts/files inline rather than pasting them.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the GitHub Issues of the fork `marcuslannister/claude-code-tips` — `gh` needs an explicit `--repo`, because `origin` is upstream `ykdojo/claude-code-tips`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
