@@ -18,8 +18,9 @@ E_CONTEXT="🧭"
 C_RESET='\033[0m'
 C_VALUE='\033[38;5;245m'   # gray for values and separators
 C_BAR_EMPTY='\033[38;5;238m'
-C_ADDED='\033[38;5;71m'    # green for added lines
-C_DELETED='\033[38;5;173m' # orange for deleted lines
+C_ADDED='\033[38;5;71m'     # green for added lines
+C_DELETED='\033[38;5;173m'  # orange for deleted lines
+C_UNTRACKED='\033[38;5;179m' # gold for the untracked file count
 C_SEP=""      # separators between segments
 C_BRANCH=""   # git branch segment
 C_BAR_FILL="" # filled part of the context bar
@@ -47,6 +48,7 @@ case "$COLOR" in
         #   branch     name             magenta           #721045
         #   added      fg-added-intense                   #006700
         #   deleted    fg-removed-intense                 #aa2222
+        #   untracked  fg-changed                         #553d00
         #   bar fill   accent-3/red-warmer/red-intense  orange/red by usage
         #   bar track  fg-dim                             #595959
         C_ACCENT='\033[38;2;0;49;169m'
@@ -55,6 +57,7 @@ case "$COLOR" in
         C_BRANCH='\033[38;2;114;16;69m'
         C_ADDED='\033[38;2;0;103;0m'
         C_DELETED='\033[38;2;170;34;34m'
+        C_UNTRACKED='\033[38;2;85;61;0m'
         C_BAR_FILL='\033[38;2;137;64;0m'
         C_BAR_WARN='\033[38;2;151;37;0m'
         C_BAR_ERR='\033[38;2;208;0;0m'
@@ -88,7 +91,7 @@ if [[ -z "$effort" ]]; then
     esac
 fi
 
-# Get git branch and uncommitted line changes (+added,-deleted)
+# Get git branch, uncommitted line changes (+added,-deleted), and untracked count
 branch=""
 diff_stat=""
 diff_plain=""
@@ -100,9 +103,26 @@ if [[ -n "$cwd" && -d "$cwd" ]]; then
             awk '{ added += $1; deleted += $2 } END { print added + 0, deleted + 0 }')
         added=$(echo "$counts" | cut -d' ' -f1)
         deleted=$(echo "$counts" | cut -d' ' -f2)
+
+        # `git diff` never reports untracked paths, so count them separately -
+        # otherwise a tree whose only work is new files looks clean
+        untracked=$(git -C "$cwd" --no-optional-locks ls-files --others --exclude-standard 2>/dev/null |
+            wc -l | tr -d ' ')
+
+        parts=""
+        parts_plain=""
         if [[ "${added:-0}" -gt 0 || "${deleted:-0}" -gt 0 ]]; then
-            diff_stat="${C_SEP}(${C_ADDED}+${added}${C_SEP},${C_DELETED}-${deleted}${C_SEP})"
-            diff_plain="(+${added},-${deleted})"
+            parts="${C_ADDED}+${added}${C_SEP},${C_DELETED}-${deleted}"
+            parts_plain="+${added},-${deleted}"
+        fi
+        if [[ "${untracked:-0}" -gt 0 ]]; then
+            [[ -n "$parts" ]] && { parts+="${C_SEP},"; parts_plain+=","; }
+            parts+="${C_UNTRACKED}?${untracked}"
+            parts_plain+="?${untracked}"
+        fi
+        if [[ -n "$parts" ]]; then
+            diff_stat="${C_SEP}(${parts}${C_SEP})"
+            diff_plain="(${parts_plain})"
         fi
     fi
 fi
