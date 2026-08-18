@@ -6,9 +6,13 @@ A two-line status line script for Claude Code that shows model, thinking effort,
 
 **Example output:**
 ```
-Model: Opus 5 | Thinking: high | Path: claude-code-tips | ⎇ main(+12,-3) | Context: [████░░░░░░░░░░░░] 45k/200k (23%)
+🤖 Opus 5 | 🧠 high | 📁 claude-code-tips | 🌿 main(+12,-3) | 🧭 [████░░░░░░░░░░░░] 45k/200k (23%)
 💬 This is good. I don't think we need to change the documentation as long as we don't say that the default color is orange el...
 ```
+
+Each segment is labeled with an emoji. If your terminal font renders emoji
+poorly, swap them for text labels with the `E_MODEL` … `E_CONTEXT` variables at
+the top of the script (e.g. `E_MODEL="Model:"`).
 
 ### Installation
 
