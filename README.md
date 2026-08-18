@@ -61,7 +61,7 @@ Here are my tips for getting the most out of Claude Code, including a custom sta
 
 ## Tip 0: Customize your status line
 
-You can customize the status line at the bottom of Claude Code to show useful info. I set mine up to show the model, thinking effort, current directory, git branch (if any) with the uncommitted line changes, and a visual progress bar for token usage. It also shows a second line with my last message so I can see what the conversation was about:
+You can customize the status line at the bottom of Claude Code to show useful info. I set mine up to show the model, thinking effort, current directory, git branch (if any) with the uncommitted line changes and untracked file count, and a visual progress bar for token usage. It also shows a second line with my last message so I can see what the conversation was about:
 
 ```
 🤖 Opus 5 | 🧠 high | 📁 claude-code-tips | 🌿 main(+12,-3) | 🧭 [████░░░░░░░░░░░░] 45k/200k (23%)

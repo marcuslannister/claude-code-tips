@@ -14,6 +14,11 @@ Each segment is labeled with an emoji. If your terminal font renders emoji
 poorly, swap them for text labels with the `E_MODEL` … `E_CONTEXT` variables at
 the top of the script (e.g. `E_MODEL="Model:"`).
 
+The branch segment shows uncommitted line changes and, after them, a `?` count
+of untracked files - `main(+12,-3,?2)`. `git diff` never reports untracked
+paths, so without that count a tree whose only work is new files would look
+clean. Ignored files are not counted.
+
 ### Installation
 
 1. Copy the script to your Claude scripts directory:
@@ -44,14 +49,29 @@ The script supports optional color themes for the labels and progress bar. Edit 
 COLOR="orange"
 ```
 
-The first ten themes are 256-color and assume a dark terminal. `modus` is a
-24-bit theme built from the [modus-operandi-tinted](https://protesilaos.com/emacs/modus-themes)
-palette for a light terminal, and it colors the context bar by usage: orange
-below 60%, `red-warmer` past 60%, `red-intense` past 85%.
+**The script ships with `COLOR="modus"`, which is built for a light terminal.**
+On a dark background the text will be close to unreadable, so change `COLOR`
+before you install it - any of the other ten themes assume a dark terminal.
+
+The first ten themes are 256-color. `modus` is a 24-bit theme built from the
+[modus-operandi-tinted](https://protesilaos.com/emacs/modus-themes) palette,
+and it colors the context bar by usage: orange below 60%, `red-warmer` past
+60%, `red-intense` past 85%.
 
 Here is the `modus` theme running in a light terminal:
 
 ![Status line running the modus theme](color-preview.png)
+
+### Tests
+
+```bash
+bash scripts/test-context-bar.sh
+```
+
+The suite builds scratch git repos and mock transcripts, then checks what the
+script renders: the git counts (clean, edits, untracked, ignored), the model and
+thinking segments, token formatting, bar fill and threshold colors, and the
+second line.
 
 ### Requirements
 
