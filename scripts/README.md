@@ -49,9 +49,9 @@ The first ten themes are 256-color and assume a dark terminal. `modus` is a
 palette for a light terminal, and it colors the context bar by usage: orange
 below 60%, `red-warmer` past 60%, `red-intense` past 85%.
 
-Preview all options by running `bash scripts/color-preview.sh`:
+Here is the `modus` theme running in a light terminal:
 
-![Color preview options](color-preview.png)
+![Status line running the modus theme](color-preview.png)
 
 ### Requirements
 

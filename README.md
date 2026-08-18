@@ -70,7 +70,7 @@ You can customize the status line at the bottom of Claude Code to show useful in
 
 This is especially helpful for keeping an eye on your context usage and remembering what you were working on. The script also supports 11 color themes (orange, blue, teal, green, lavender, rose, gold, slate, cyan, gray, or modus for a light terminal).
 
-![Color preview options](scripts/color-preview.png)
+![Status line running the modus theme](scripts/color-preview.png)
 
 To set this up, you can use [this sample script](scripts/context-bar.sh) and check the [setup instructions](scripts/README.md).
 

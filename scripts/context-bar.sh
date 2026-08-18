@@ -2,7 +2,6 @@
 
 # Color theme: gray, orange, blue, teal, green, lavender, rose, gold, slate, cyan,
 # modus (light background, 24-bit color - see the modus block below)
-# Preview colors with: bash scripts/color-preview.sh
 COLOR="modus"
 
 # Segment icons - swap these for text labels (e.g. E_MODEL="Model:") if your
