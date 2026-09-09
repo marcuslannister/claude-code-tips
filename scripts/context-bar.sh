@@ -244,9 +244,9 @@ if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
 
     if [[ -n "$last_user_msg" ]]; then
         if [[ ${#last_user_msg} -gt $max_len ]]; then
-            echo "💬 ${last_user_msg:0:$((max_len - 3))}..."
+            echo "📝 ${last_user_msg:0:$((max_len - 3))}..."
         else
-            echo "💬 ${last_user_msg}"
+            echo "📝 ${last_user_msg}"
         fi
     fi
 fi
