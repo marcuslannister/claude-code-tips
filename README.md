@@ -1,4 +1,4 @@
-# 40+ Claude Code Tips: From Basics to Advanced
+# 45+ Claude Code Tips: From Basics to Advanced
 
 Here are my tips for getting the most out of Claude Code, including a custom status line script and Claude Code running itself in a container. Also includes the [dx plugin](#tip-44-install-the-dx-plugin): skills for everyday dev workflows.
 
@@ -56,6 +56,9 @@ Here are my tips for getting the most out of Claude Code, including a custom sta
 - [Tip 44: Install the dx plugin](#tip-44-install-the-dx-plugin)
 - [Tip 45: Quick setup script](#tip-45-quick-setup-script)
 - [Tip 46: Switch between multiple Claude accounts](#tip-46-switch-between-multiple-claude-accounts)
+- [Tip 47: Use GitHub as your knowledge base](#tip-47-use-github-as-your-knowledge-base)
+- [Tip 48: Learn to review code through a TESTING.md document](#tip-48-learn-to-review-code-through-a-testingmd-document)
+- [Tip 49: Turn on the concise output style](#tip-49-turn-on-the-concise-output-style)
 
 <!-- /TOC -->
 
@@ -85,26 +88,32 @@ Check your rate limits:
 ```
  Current session
  █████████▌                                         19% used
- Resets 12:59am (America/Vancouver)
+ Resets 5:39pm (America/Vancouver)
 
  Current week (all models)
- █████████████████████▌                             43% used
- Resets Feb 3 at 1:59pm (America/Vancouver)
+ ██▌                                                5% used
+ Resets Sep 6 at 9:59am (America/Vancouver)
 
- Current week (Sonnet only)
- ███████████████████▌                               39% used
- Resets 8:59am (America/Vancouver)
+ Current week (Fable)
+ █████                                              10% used
+ Resets Sep 6 at 9:59am (America/Vancouver)
 ```
 
 If you want to watch your usage closely, keep it open in a tab and use Tab then Shift+Tab or ← then → to refresh.
 
 ### /chrome
 
-Toggle Claude's native browser integration:
+Manage Claude's native browser integration:
 
 ```
-> /chrome
-Chrome integration enabled
+ Status: Disabled
+ Extension: Installed
+
+ ❯ Manage permissions
+   Reconnect extension
+   Enabled by default: No
+
+ Usage: claude --chrome or claude --no-chrome
 ```
 
 ### /mcp
@@ -113,13 +122,16 @@ Manage MCP (Model Context Protocol) servers:
 
 ```
  Manage MCP servers
- 1 server
+ 3 servers
 
- ❯ 1. playwright  ✔ connected · Enter to view details
+   User MCPs (/Users/ykdojo/.claude.json)
+ ❯ playwright · ✔ connected · 24 tools
 
- MCP Config locations (by scope):
-  • User config (available in all your projects):
-    • /Users/yk/.claude.json
+   claude.ai
+   → Show unused connectors (1)
+
+   Built-in MCPs (always available)
+   computer-use · ◯ disabled
 ```
 
 ### /stats
@@ -127,24 +139,24 @@ Manage MCP (Model Context Protocol) servers:
 View your usage statistics with a GitHub-style activity graph:
 
 ```
-      Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec Jan
-      ··········································▒█░▓░█░▓▒▒
-  Mon ·········································▒▒██▓░█▓█░█
-      ·········································░▒█▒▓░█▒█▒█
-  Wed ········································░▓▒█▓▓░▒▓▒██
-      ········································░▓░█▓▓▓▓█░▒█
-  Fri ········································▒░░▓▒▒█▓▓▓█
-      ········································▒▒░▓░░▓▒▒░░
+      Sep Oct Nov Dec Jan Feb Mar Apr May Jun Jul Aug
+      ················································▒▒▓▓
+  Mon ················································▒▓█
+      ················································██░
+  Wed ················································▒░░
+      ···············································█░▒█
+  Fri ···············································░▒·█
+      ···············································▓▓▓░
 
       Less ░ ▒ ▓ █ More
 
-  Favorite model: Opus 4.5        Total tokens: 17.6m
+  Favorite model: Fable 5         Total tokens: 755.6m
 
-  Sessions: 4.1k                  Longest session: 20h 40m 45s
-  Active days: 79/80              Longest streak: 75 days
-  Most active day: Jan 26         Current streak: 74 days
+  Sessions: 157                   Longest session: 16h 45m 11s
+  Active days: 24/26              Longest streak: 15 days
+  Most active day: Aug 27         Current streak: 9 days
 
-  You've used ~24x more tokens than War and Peace
+  Your input and output are ~12x the tokens in Moby-Dick
 ```
 
 ### /clear
@@ -288,7 +300,7 @@ Once you have these aliases, you can combine them with flags: `c -c` continues y
 
 ## Tip 8: Proactively compact your context
 
-There's a `/compact` command in Claude Code that summarizes your conversation to free up context space. Automatic compaction also happens when the full available context is filled. The total available context window for Opus 4.5 is currently 200k, and 45k of that is reserved for automatic compaction. About 10% of the total 200k is automatically filled with the system prompt, tools, memory, and dynamic context. But I found that it's better to proactively do it and manually tune it. I turned off auto-compact with `/config` so I have more context available for the main conversation and more control over when and how compaction happens.
+There's a `/compact` command in Claude Code that summarizes your conversation to free up context space. Automatic compaction also happens when the full available context is filled (you can make it run earlier with `/autocompact`). But I found that it's better to proactively do it and manually tune it. I turned off auto-compact with `/config` so I have more control over when and how compaction happens.
 
 The way I do this is to ask Claude to write a handoff document before starting fresh. Something like:
 
@@ -322,25 +334,6 @@ Then start a fresh conversation. For the fresh agent, you can just give the path
 In subsequent conversations, you can ask the agent to update the document for the next agent.
 
 I've also created a `/handoff` slash command that automates this - it checks for an existing HANDOFF.md, reads it if present, then creates or updates it with the goal, progress, what worked, what didn't, and next steps. You can find it in the [skills folder](skills/handoff/SKILL.md), or install it via the [dx plugin](#tip-44-install-the-dx-plugin).
-
-**Alternative: Use plan mode**
-
-Another option is to use plan mode. Enter it with `/plan` or Shift+Tab. Ask Claude to gather all the relevant context and create a comprehensive plan for the next agent:
-
-> I just enabled plan mode. Bring over all of the context that you need for the next agent. The next agent will not have any other context, so you'll need to be pretty comprehensive.
-
-Claude will explore the codebase, gather context, and write a detailed plan. When it's done, you'll see options like:
-
-```
-Would you like to proceed?
-
-❯ 1. Yes, clear context and auto-accept edits (shift+tab)
-  2. Yes, auto-accept edits
-  3. Yes, manually approve edits
-  4. Type here to tell Claude what to change
-```
-
-Option 1 clears the previous context and starts fresh with the plan. The new Claude instance sees only the plan, so it can focus without the baggage of the old conversation. It also gets a link to the old transcript file in case it needs to look up specific details.
 
 ## Tip 9: Complete the write-test cycle for autonomous tasks
 
@@ -393,6 +386,8 @@ Additionally, you can ask it to use accessibility tree refs instead of coordinat
 - Click/interact using `ref`, not coordinates
 - NEVER take screenshots unless explicitly requested by the user
 ```
+
+I've also run into a couple of issues with it - it doesn't always pick the local browser ([#74667](https://github.com/anthropics/claude-code/issues/74667)), and there's no way to enable it from a Remote Control session, like when I'm working from my phone ([#74671](https://github.com/anthropics/claude-code/issues/74671)) - so I built [Browser Bridge](https://github.com/ykdojo/browser-bridge), an open source alternative that addresses both.
 
 In my personal experience, I've also had a situation where I was working on a Python library ([Daft](https://github.com/Eventual-Inc/Daft)) and needed to test a version I built locally on Google Colab. The trouble is it's hard to build a Python library with a Rust backend on Google Colab - it doesn't seem to work that well. So I needed to actually build a wheel locally and then upload it manually so that I could run it on Google Colab. I also tried monkey patching, which worked well in the short term before I had to wait for the whole wheel to build locally. I came up with these testing strategies and executed them by going back and forth with Claude Code.
 
@@ -550,7 +545,7 @@ Recently I saw a world-class rock climber being interviewed by another rock clim
 
 That's how I feel about this too. Of course, there are supplementary things you can do, like watching videos, reading books, learning about tips. But using Claude Code is the best way to learn how to use it. Using AI in general is the best way to learn how to use AI.
 
-I like to think of it like a billion token rule instead of the 10,000 hour rule. If you want to get better at AI and truly get a good intuition about how it works, the best way is to consume a lot of tokens. And nowadays it's possible. I found that especially with Opus 4.5, it's powerful enough but affordable enough that you can run multiple sessions at the same time. You don't have to worry as much about token usage, which frees you up a lot.
+I like to think of it like a billion token rule instead of the 10,000 hour rule. If you want to get better at AI and truly get a good intuition about how it works, the best way is to consume a lot of tokens. And nowadays it's possible. I found that especially since Opus 4.5, the models have been powerful enough but affordable enough that you can run multiple sessions at the same time. You don't have to worry as much about token usage, which frees you up a lot.
 
 ## Tip 21: Fork and half-clone conversations
 
@@ -591,7 +586,7 @@ Or install via the [dx plugin](#tip-44-install-the-dx-plugin) - no symlinks need
 
 ### Auto-suggest half-clone with a hook
 
-Optionally, you can use a [hook](https://docs.anthropic.com/en/docs/claude-code/hooks) to automatically trigger `/half-clone` when your context gets too long. The [check-context script](scripts/check-context.sh) runs after every Claude response and checks context usage. If it's over 85%, it tells Claude to run `/half-clone`, which creates a new conversation with only the later half so a new agent can continue there.
+Optionally, you can use a [hook](https://code.claude.com/docs/en/hooks) to automatically trigger `/half-clone` when your context gets too long. The [check-context script](scripts/check-context.sh) runs after every Claude response and checks context usage. If it's over 85%, it tells Claude to run `/half-clone`, which creates a new conversation with only the later half so a new agent can continue there.
 
 To set it up, first copy the script:
 ```bash
@@ -742,7 +737,7 @@ Or start a server with `claude remote-control --spawn=worktree --capacity=N`, wh
 
 Personally I prefer the `/rc` method, and I turn it off when I'm not using it. A potential attacker who gets access to your Claude Code session essentially has access to everything on your computer, so I'd rather be careful. The exception is when I have a totally [isolated environment](#tip-19-isolated-environments-for-long-running-risky-tasks) - then it's super convenient to be able to start a Claude Code session from anywhere from your phone, with access to your full dev environment.
 
-One thing to watch out for: if "Enable Remote Control for all sessions" is unset, it could be enabled automatically for every new session. Set it to false explicitly if you don't want that, either through `/config` or with `"remoteControlAtStartup": false` in `~/.claude/settings.json`.
+If you do want Remote Control enabled automatically for every new session, turn on "Enable Remote Control for all sessions" through `/config`, or set `"remoteControlAtStartup": true` in `~/.claude/settings.json`. It's off by default.
 
 Docs: [Remote Control](https://code.claude.com/docs/en/remote-control).
 
@@ -754,7 +749,7 @@ The nice thing about it is that it's gated behind your Anthropic login: a new ar
 
 It works great from your phone as well. In the Claude mobile app, tap the artifact card and it opens right there in the app.
 
-One thing to keep in mind: an artifact is a single self-contained page with no backend, and external requests are blocked - so if your HTML pulls a library from a CDN, bundle it into the file first.
+One thing to keep in mind: an artifact is a single self-contained page with no backend, and most external requests are blocked - scripts from a few allowlisted CDNs (like cdnjs) work, but otherwise bundle libraries and assets into the file first.
 
 ## Tip 34: Write lots of tests (and use TDD)
 
@@ -789,7 +784,7 @@ Eventually I found a pretty elegant solution. The lesson: even in the world of t
 
 ## Tip 36: Running bash commands and subagents in the background
 
-When you have a long-running bash command in Claude Code, you can press Ctrl+B to move it to run in the background. Claude Code knows how to manage background processes - it can check on them later using the BashOutput tool.
+When you have a long-running bash command in Claude Code, you can press Ctrl+B to move it to run in the background. Claude Code knows how to manage background processes - it can check on their output later.
 
 This is useful when you realize a command is taking longer than expected and you want Claude to do something else in the meantime. You can then either have it use the exponential backoff method I mentioned in Tip 15 to check on progress, or just let it work on something else entirely while the process runs.
 
@@ -802,7 +797,7 @@ Beyond just running things in the background, subagents are useful when you have
 You can customize subagents by just asking:
 - **How many** - ask Claude to spawn the number you want
 - **Background vs foreground** - ask to run them in the background, or press Ctrl+B
-- **Which model** - ask for Opus, Sonnet, or Haiku depending on the complexity of each task (subagents default to Sonnet)
+- **Which model** - ask for Fable, Opus, Sonnet, or Haiku depending on the complexity of each task (by default, subagents inherit the main conversation's model)
 
 ## Tip 37: The era of personalized software is here
 
@@ -827,7 +822,7 @@ Claude Code's input box is designed to emulate common terminal/readline shortcut
 - `Ctrl+W` - Delete the previous word
 - `Ctrl+U` - Delete from cursor to beginning of line
 - `Ctrl+K` - Delete from cursor to end of line
-- `Ctrl+C` / `Ctrl+L` - Clear the current input
+- `Ctrl+C` - Clear the current input
 - `Ctrl+G` - Open your prompt in an external editor (useful for pasting long text, since pasting directly into the terminal can be slow)
 
 If you're familiar with bash, zsh, or other shells, you'll feel right at home.
@@ -924,11 +919,6 @@ There are several effective ways to keep learning about Claude Code:
 
 **Learn from the community** - The [r/ClaudeAI](https://www.reddit.com/r/ClaudeAI/) subreddit is a great place to learn from other users and see what workflows people are using.
 
-**Follow Ado for tips** - Ado ([@adocomplete](https://x.com/adocomplete)) is a DevRel at Anthropic who posted daily Claude Code tips throughout December 2025 in his "Advent of Claude" series. While this particular series has already ended, he continues to share useful tips on X.
-
-- [Twitter/X: Advent of Claude posts](https://x.com/search?q=from%3Aadocomplete%20advent%20of%20claude&src=typed_query&f=live)
-- [LinkedIn: Advent of Claude posts](https://www.linkedin.com/search/results/content/?fromMember=%5B%22ACoAAAFdD3IBYHwKSh6FsyGqOh1SpbrZ9ZHTjnI%22%5D&keywords=advent%20of%20claude&origin=FACETED_SEARCH&sid=zDV&sortBy=%22date_posted%22)
-
 ## Tip 44: Install the dx plugin
 
 This repo is also a Claude Code plugin called `dx` (developer experience). It bundles several tools from the tips above into a single install:
@@ -1007,6 +997,32 @@ clp() { CLAUDE_CODE_OAUTH_TOKEN="$(security find-generic-password -s claude-toke
 ```
 
 Now `clw` and `clp` run as each account (e.g. `clw --resume`), while plain `claude` still uses your Keychain login. Tokens last about a year, so re-run `setup-token` to refresh.
+
+## Tip 47: Use GitHub as your knowledge base
+
+I've been using GitHub as my knowledge base - kind of a Notion replacement. Instead of opening up a Notion document, I just create a new repo or find an existing private repo where I can put my notes. I dictate my thoughts and develop my notes there, and if I have some research to do, I let Claude Code do the research and update those repos.
+
+I also have repos for skills. If I have to repeat the same type of work over and over again, it's nice to be able to have that in a skill format so I can reuse those workflows.
+
+The one missing piece is search: GitHub's own search doesn't work well for private repos. I wrote about that problem and how I solved it in [The missing private GitHub search](content/the-missing-private-github-search.md) - it's a [skill](skills/private-github-search/SKILL.md) that mirrors all your repos locally and searches them with ripgrep, so I can just ask Claude Code "which repo has X" and it finds it.
+
+See: [Why GitHub is the best knowledge base](content/why-github-is-the-best-knowledge-base.md)
+
+## Tip 48: Learn to review code through a TESTING.md document
+
+When you need to review a large amount of code (Claude Code generated code, a PR from your teammate, or an external PR), the real challenge is building a mental model of what's going on. And the question is, how do you know if this is correct? You can read the code. You can write tests. But there is another way that's one level above those.
+
+What I recommend is to have Claude Code test everything in the given code thoroughly, let it document how it tested and verified everything in a TESTING.md document, and review that document manually instead. You can go back and forth on it to get a good format for you to review. If it's too long, ask it to make it shorter. If it's too short, ask for more information. If it has jargon you don't understand, ask it to explain or simplify.
+
+Here is a real example: [TESTING.md](TESTING.md) from this repo. It started with the review of one external PR, where Claude Code reproduced the bug on a real Windows runner in GitHub Actions, verified the fix, and summarized everything it tested. Now it's a running log that we keep updating with each review. Tracking it in git this way gives you a record of how everything has been tested. If someone asks, how do you know if something works as intended, then you can just point them to this document.
+
+## Tip 49: Turn on the concise output style
+
+Set Claude Code's output style to Concise: run `/config`, go to **Output style**, and pick **Concise** (or set `"outputStyle": "Concise"` in `~/.claude/settings.json`; requires v2.1.237 or later).
+
+Before I switched this on, Claude would sometimes ramble about something and I'd have to say "you're talking too much, can you give me a TLDR?" With this setting, I need to do that much less often. I think it's a good default for most people - and if you need more details about certain things, you can just ask follow-up questions.
+
+It only affects the visible response text, not the thinking, so you're not losing any reasoning quality.
 
 ---
 

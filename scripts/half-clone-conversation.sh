@@ -63,6 +63,8 @@ generate_uuid() {
         uuidgen | tr '[:upper:]' '[:lower:]'
     elif [ -f /proc/sys/kernel/random/uuid ]; then
         cat /proc/sys/kernel/random/uuid
+    elif command -v openssl &> /dev/null; then
+        openssl rand -hex 16 | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/'
     else
         # Fallback using $RANDOM
         printf '%04x%04x-%04x-%04x-%04x-%04x%04x%04x\n' \
@@ -74,7 +76,14 @@ generate_uuid() {
 }
 
 convert_path_to_dirname() {
-    echo "$1" | sed 's|^/||' | sed 's|/|-|g' | sed 's|^|-|'
+    local path="$1"
+    if [[ "$path" =~ ^[A-Za-z]: ]]; then
+        # Windows-style path (C:\Users\yurizen or C:/Users/yurizen) ->
+        # Claude Code convention: C--Users-yurizen (colon and separators -> "-")
+        echo "$path" | sed 's|[\\/]|-|g' | sed 's|:|-|g'
+    else
+        echo "$path" | sed 's|^/||' | sed 's|/|-|g' | sed 's|^|-|'
+    fi
 }
 
 find_conversation_file() {
@@ -106,7 +115,14 @@ get_project_from_conv_file() {
     local conv_file="$1"
     local project_dirname
     project_dirname=$(dirname "$conv_file" | xargs basename)
-    echo "$project_dirname" | sed 's|^-|/|' | sed 's|-|/|g'
+    if [[ "$project_dirname" =~ ^[A-Za-z]-- ]]; then
+        # Windows-style: C--Users-yurizen -> C:\Users\yurizen
+        local drive="${project_dirname:0:1}"
+        local rest="${project_dirname:3}"
+        echo "${drive}:\\$(echo "$rest" | sed 's|-|\\|g')"
+    else
+        echo "$project_dirname" | sed 's|^-|/|' | sed 's|-|/|g'
+    fi
 }
 
 # Filter JSONL to clean user messages only.
@@ -148,13 +164,18 @@ pre_generate_uuids() {
         for ((i=0; i<count; i++)); do
             cat /proc/sys/kernel/random/uuid
         done > "$output_file"
+    elif command -v openssl &> /dev/null; then
+        # Windows/Git Bash fallback: openssl (no hexdump/uuidgen there)
+        openssl rand -hex $((count * 16)) \
+            | fold -w32 \
+            | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/' > "$output_file"
     elif command -v uuidgen &> /dev/null; then
         # macOS/BSD fallback
         for ((i=0; i<count; i++)); do
             uuidgen | tr '[:upper:]' '[:lower:]'
         done > "$output_file"
     else
-        log_error "No UUID generation method available (need hexdump, /proc/sys/kernel/random/uuid, or uuidgen)"
+        log_error "No UUID generation method available (need hexdump, /proc/sys/kernel/random/uuid, uuidgen, or openssl)"
         return 1
     fi
 }
@@ -548,8 +569,12 @@ half_clone_conversation() {
     # Escape for JSON (LC_ALL=C for macOS sed with non-UTF-8 bytes)
     display_text=$(echo "$display_text" | LC_ALL=C sed 's/\\/\\\\/g' | LC_ALL=C sed 's/"/\\"/g' | LC_ALL=C tr '\n' ' ')
 
+    # Escape for JSON - Windows project paths contain backslashes
+    local project_path_json
+    project_path_json=$(echo "$project_path" | LC_ALL=C sed 's/\\/\\\\/g' | LC_ALL=C sed 's/"/\\"/g')
+
     # Add history entry
-    echo "{\"display\":\"${display_text}\",\"pastedContents\":{},\"timestamp\":${timestamp},\"project\":\"${project_path}\",\"sessionId\":\"${new_session}\"}" >> "$HISTORY_FILE"
+    echo "{\"display\":\"${display_text}\",\"pastedContents\":{},\"timestamp\":${timestamp},\"project\":\"${project_path_json}\",\"sessionId\":\"${new_session}\"}" >> "$HISTORY_FILE"
     log_success "History entry added"
 
     # Note: We don't copy todos since the context is truncated

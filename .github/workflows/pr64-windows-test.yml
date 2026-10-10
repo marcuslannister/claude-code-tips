@@ -1,0 +1,105 @@
+name: PR64 Windows Git Bash test
+
+on:
+  push:
+    branches: [test/pr64-windows-gitbash]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Survey Git Bash environment
+        run: |
+          uname -a
+          for c in hexdump uuidgen openssl fold sed awk grep xxd; do
+            if command -v "$c" >/dev/null 2>&1; then echo "$c -> $(command -v "$c")"; else echo "$c -> NOT FOUND"; fi
+          done
+          if [ -f /proc/sys/kernel/random/uuid ]; then echo "/proc/sys/kernel/random/uuid -> present"; else echo "/proc/sys/kernel/random/uuid -> absent"; fi
+          openssl version
+
+      - name: Check openssl output for CRLF
+        run: |
+          openssl rand -hex 16 | od -c | head -5
+          if openssl rand -hex 16 | grep -q $'\r'; then
+            echo "FAIL: openssl output contains CR"
+            exit 1
+          fi
+          echo "OK: no CR in openssl output"
+
+      - name: Build synthetic conversation
+        run: |
+          SESS="aaaaaaaa-1111-2222-3333-444444444444"
+          PROJDIR="$HOME/.claude/projects/-c-testproj"
+          mkdir -p "$PROJDIR" "$HOME/.claude"
+          F="$PROJDIR/$SESS.jsonl"
+          : > "$F"
+          prev=null
+          n=0
+          for i in 1 2 3 4; do
+            u_user=$(printf '%08x-0000-0000-0000-%012x' $((i*100+1)) $((n+1)))
+            u_asst=$(printf '%08x-0000-0000-0000-%012x' $((i*100+2)) $((n+2)))
+            u_msg=$(printf '%08x-0000-0000-0000-%012x' $((i*100+3)) $((n+3)))
+            n=$((n+3))
+            echo "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"user message number $i\"},\"uuid\":\"$u_user\",\"parentUuid\":$prev,\"isSidechain\":false,\"userType\":\"external\",\"sessionId\":\"$SESS\",\"timestamp\":\"2026-08-24T10:0$i:00.000Z\"}" >> "$F"
+            echo "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"secret thoughts $i\",\"signature\":\"sig\"},{\"type\":\"text\",\"text\":\"assistant reply number $i\"}],\"usage\":{\"input_tokens\":1000,\"cache_read_input_tokens\":2000,\"cache_creation_input_tokens\":400}},\"uuid\":\"$u_asst\",\"parentUuid\":\"$u_user\",\"messageId\":\"$u_msg\",\"isSidechain\":false,\"sessionId\":\"$SESS\",\"timestamp\":\"2026-08-24T10:0$i:30.000Z\"}" >> "$F"
+            prev="\"$u_asst\""
+          done
+          echo "{\"type\":\"last-prompt\",\"leafUuid\":\"$u_asst\",\"sessionId\":\"$SESS\"}" >> "$F"
+          wc -l "$F"
+
+      - name: Run half-clone end-to-end
+        run: |
+          bash scripts/half-clone-conversation.sh aaaaaaaa-1111-2222-3333-444444444444 /c/testproj
+          echo "exit code: $?"
+
+      - name: Validate cloned output
+        run: |
+          PROJDIR="$HOME/.claude/projects/-c-testproj"
+          NEW=$(ls "$PROJDIR" | grep -v aaaaaaaa | sed 's/.jsonl//')
+          F="$PROJDIR/$NEW.jsonl"
+          echo "new session: $NEW"
+          echo "--- cloned file ---"
+          cat "$F"
+          echo "--- validations ---"
+          fail=0
+          # New session id must be a clean 8-4-4-4-12 lowercase hex UUID (no CR)
+          echo -n "$NEW" | grep -qE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' || { echo "FAIL: bad session id format"; fail=1; }
+          # No CR anywhere in output file
+          if grep -q $'\r' "$F"; then echo "FAIL: CR chars in cloned file"; fail=1; fi
+          # All uuid fields valid format
+          bad=$(grep -oE '"uuid":"[^"]*"' "$F" | sed 's/"uuid":"//;s/"//' | grep -cvE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' || true)
+          [ "$bad" = "0" ] || { echo "FAIL: $bad malformed uuids"; fail=1; }
+          # No thinking blocks survived
+          if grep -q '"thinking"' "$F"; then echo "FAIL: thinking blocks not stripped"; fail=1; fi
+          # No old non-session uuids leaked (synthetic ones contain -0000-0000-0000-)
+          if grep -q -- '-0000-0000-0000-' "$F"; then echo "FAIL: old uuids leaked"; fail=1; fi
+          # History entry written
+          grep -q "$NEW" "$HOME/.claude/history.jsonl" || { echo "FAIL: no history entry"; fail=1; }
+          # Bulk uuid generation: exercise pre_generate_uuids indirectly is done above;
+          # also sanity-check the bulk pipeline standalone at scale
+          openssl rand -hex $((5000 * 16)) | fold -w32 | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/' > bulk.txt
+          [ "$(wc -l < bulk.txt)" -eq 5000 ] || { echo "FAIL: bulk count $(wc -l < bulk.txt)"; fail=1; }
+          [ "$(grep -cvE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' bulk.txt || true)" = "0" ] || { echo "FAIL: malformed bulk uuids"; fail=1; }
+          [ "$(sort bulk.txt | uniq -d | wc -l)" -eq 0 ] || { echo "FAIL: duplicate bulk uuids"; fail=1; }
+          [ "$fail" = "0" ] && echo "ALL VALIDATIONS PASSED"
+          exit "$fail"
+
+      - name: Confirm old version fails (regression baseline)
+        run: |
+          git fetch origin main --depth 1 || git fetch https://github.com/ykdojo/claude-code-tips main --depth 1
+          git show FETCH_HEAD:scripts/half-clone-conversation.sh > old-script.sh
+          set +e
+          out=$(bash old-script.sh aaaaaaaa-1111-2222-3333-444444444444 /c/testproj 2>&1)
+          code=$?
+          set -e
+          echo "$out" | tail -3
+          if echo "$out" | grep -q "No UUID generation method available"; then
+            echo "CONFIRMED: old script fails on Git Bash as PR describes"
+          else
+            echo "NOTE: old script did NOT fail (exit $code) - PR premise not reproduced"
+          fi

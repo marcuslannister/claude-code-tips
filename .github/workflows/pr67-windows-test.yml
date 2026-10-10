@@ -1,0 +1,149 @@
+name: PR67 Windows path dirname test
+
+on:
+  push:
+    branches: [test/pr67-windows-path-dirname]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Survey Git Bash environment
+        run: |
+          uname -a
+          for c in uuidgen openssl sed awk grep; do
+            if command -v "$c" >/dev/null 2>&1; then echo "$c -> $(command -v "$c")"; else echo "$c -> NOT FOUND"; fi
+          done
+          if [ -f /proc/sys/kernel/random/uuid ]; then echo "/proc/sys/kernel/random/uuid -> present"; else echo "/proc/sys/kernel/random/uuid -> absent"; fi
+
+      - name: Unit-test path conversion round-trip
+        run: |
+          sed -n '/^convert_path_to_dirname()/,/^}/p;/^get_project_from_conv_file()/,/^}/p' scripts/half-clone-conversation.sh > funcs.sh
+          source funcs.sh
+          fail=0
+          check() {
+            local desc="$1" got="$2" want="$3"
+            if [ "$got" = "$want" ]; then echo "OK:   $desc -> $got"
+            else echo "FAIL: $desc -> got '$got', want '$want'"; fail=1; fi
+          }
+          check 'C:\Users\yurizen'          "$(convert_path_to_dirname 'C:\Users\yurizen')"      'C--Users-yurizen'
+          check 'C:/Users/yurizen'          "$(convert_path_to_dirname 'C:/Users/yurizen')"      'C--Users-yurizen'
+          check '/usr/local/project (posix unchanged)' "$(convert_path_to_dirname '/usr/local/project')" '-usr-local-project'
+          check 'reverse C--Users-yurizen'  "$(get_project_from_conv_file '/x/projects/C--Users-yurizen/a.jsonl')" 'C:\Users\yurizen'
+          check 'reverse -usr-local-project (posix unchanged)' "$(get_project_from_conv_file '/x/projects/-usr-local-project/a.jsonl')" '/usr/local/project'
+          rt=$(convert_path_to_dirname "$(get_project_from_conv_file '/x/projects/C--Users-yurizen/a.jsonl')")
+          check 'full round-trip' "$rt" 'C--Users-yurizen'
+          exit "$fail"
+
+      - name: Run full test suite on Git Bash
+        run: bash scripts/test-half-clone.sh
+
+      - name: Build synthetic conversation in a Windows-style project dir
+        run: |
+          SESS="aaaaaaaa-1111-2222-3333-444444444444"
+          PROJDIR="$HOME/.claude/projects/C--Users-runneradmin-testproj"
+          mkdir -p "$PROJDIR" "$HOME/.claude"
+          F="$PROJDIR/$SESS.jsonl"
+          : > "$F"
+          prev=null
+          n=0
+          for i in 1 2 3 4; do
+            u_user=$(printf '%08x-0000-0000-0000-%012x' $((i*100+1)) $((n+1)))
+            u_asst=$(printf '%08x-0000-0000-0000-%012x' $((i*100+2)) $((n+2)))
+            u_msg=$(printf '%08x-0000-0000-0000-%012x' $((i*100+3)) $((n+3)))
+            n=$((n+3))
+            echo "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"user message number $i\"},\"uuid\":\"$u_user\",\"parentUuid\":$prev,\"isSidechain\":false,\"userType\":\"external\",\"sessionId\":\"$SESS\",\"timestamp\":\"2026-08-25T10:0$i:00.000Z\"}" >> "$F"
+            echo "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"assistant reply number $i\"}],\"usage\":{\"input_tokens\":1000,\"cache_read_input_tokens\":2000,\"cache_creation_input_tokens\":400}},\"uuid\":\"$u_asst\",\"parentUuid\":\"$u_user\",\"messageId\":\"$u_msg\",\"isSidechain\":false,\"sessionId\":\"$SESS\",\"timestamp\":\"2026-08-25T10:0$i:30.000Z\"}" >> "$F"
+            prev="\"$u_asst\""
+          done
+          wc -l "$F"
+
+      - name: Run half-clone end-to-end with a Windows path
+        run: |
+          bash scripts/half-clone-conversation.sh aaaaaaaa-1111-2222-3333-444444444444 'C:\Users\runneradmin\testproj'
+
+      - name: Validate cloned output landed in the right project dir
+        run: |
+          PROJDIR="$HOME/.claude/projects/C--Users-runneradmin-testproj"
+          echo "--- projects dir after clone ---"
+          ls "$HOME/.claude/projects"
+          NEW=$(ls "$PROJDIR" | grep -v aaaaaaaa | sed 's/.jsonl//')
+          F="$PROJDIR/$NEW.jsonl"
+          echo "new session: $NEW"
+          echo "--- cloned file ---"
+          cat "$F"
+          echo "--- validations ---"
+          fail=0
+          # Exactly one new file, in the SAME dir as the source (the bug this PR fixes)
+          [ "$(ls "$PROJDIR" | wc -l)" -eq 2 ] || { echo "FAIL: expected 2 files in $PROJDIR"; fail=1; }
+          # No stray mangled project dirs created by the clone
+          extra=$(ls "$HOME/.claude/projects" | grep -v '^C--Users-runneradmin-testproj$' || true)
+          [ -z "$extra" ] || { echo "FAIL: stray project dirs created: $extra"; fail=1; }
+          # New session id must be a clean lowercase UUID (no CR)
+          echo -n "$NEW" | grep -qE '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' || { echo "FAIL: bad session id format"; fail=1; }
+          # No CR anywhere in output file
+          if grep -q $'\r' "$F"; then echo "FAIL: CR chars in cloned file"; fail=1; fi
+          # History entry written
+          grep -q "$NEW" "$HOME/.claude/history.jsonl" || { echo "FAIL: no history entry"; fail=1; }
+          [ "$fail" = "0" ] && echo "ALL VALIDATIONS PASSED"
+          exit "$fail"
+
+      - name: Check history.jsonl entry is valid JSON with the exact Windows path
+        run: |
+          line=$(tail -1 "$HOME/.claude/history.jsonl")
+          echo "$line"
+          echo "$line" | python -c '
+          import json, sys
+          entry = json.loads(sys.stdin.read())
+          assert entry["project"] == r"C:\Users\runneradmin\testproj", entry["project"]
+          print("OK: history entry parses as JSON and the project path round-trips exactly")
+          '
+
+      - name: Confirm old scripts fail (regression baseline)
+        run: |
+          # Baseline = upstream main (includes the #64 openssl fallback), so the
+          # only failure left to demonstrate is the path bug this PR fixes.
+          git fetch https://github.com/ykdojo/claude-code-tips main --depth 1
+          git show FETCH_HEAD:scripts/half-clone-conversation.sh > old-script.sh
+          # Old test suite goes into scripts/ so it finds its sibling script.
+          git show FETCH_HEAD:scripts/test-half-clone.sh > scripts/old-tests.sh
+
+          echo "=== old test suite on Git Bash ==="
+          set +e
+          out=$(bash scripts/old-tests.sh 2>&1)
+          code=$?
+          set -e
+          echo "$out" | tail -20
+          echo "old test suite exit code: $code"
+          if [ "$code" -ne 0 ] && echo "$out" | grep -qi "command not found"; then
+            echo "CONFIRMED: old test suite cannot run on Git Bash (exit $code)"
+          elif [ "$code" -ne 0 ]; then
+            echo "NOTE: old test suite failed (exit $code) but not with a command-not-found error"
+          else
+            echo "NOTE: old test suite passed - PR premise not reproduced"
+          fi
+
+          echo "=== old half-clone with a Windows path ==="
+          SESS2="bbbbbbbb-1111-2222-3333-444444444444"
+          cp "$HOME/.claude/projects/C--Users-runneradmin-testproj/aaaaaaaa-1111-2222-3333-444444444444.jsonl" \
+             "$HOME/.claude/projects/C--Users-runneradmin-testproj/$SESS2.jsonl"
+          sed -i "s/aaaaaaaa-1111-2222-3333-444444444444/$SESS2/g" "$HOME/.claude/projects/C--Users-runneradmin-testproj/$SESS2.jsonl"
+          set +e
+          out=$(bash old-script.sh "$SESS2" 'C:\Users\runneradmin\testproj' 2>&1)
+          code=$?
+          set -e
+          echo "$out" | tail -5
+          echo "old script exit code: $code"
+          echo "--- projects dir after old-script run ---"
+          ls "$HOME/.claude/projects"
+          stray=$(ls "$HOME/.claude/projects" | grep -v '^C--Users-runneradmin-testproj$' || true)
+          if [ "$code" -ne 0 ] || [ -n "$stray" ]; then
+            echo "CONFIRMED: old script breaks on Windows paths (exit $code, stray dirs: ${stray:-none})"
+          else
+            echo "NOTE: old script handled the Windows path fine - PR premise not reproduced"
+          fi

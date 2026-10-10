@@ -17,6 +17,24 @@ TEST_PROJECTS_DIR="${TEST_CLAUDE_DIR}/projects"
 TEST_PROJECT_PATH="/test/project"
 TEST_PROJECT_DIRNAME="-test-project"
 
+# UUID generation - same fallback chain as half-clone-conversation.sh, so
+# tests can run on Windows/Git Bash where uuidgen isn't available.
+gen_uuid() {
+    if command -v uuidgen &> /dev/null; then
+        uuidgen | tr '[:upper:]' '[:lower:]'
+    elif [ -f /proc/sys/kernel/random/uuid ]; then
+        cat /proc/sys/kernel/random/uuid
+    elif command -v openssl &> /dev/null; then
+        openssl rand -hex 16 | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/'
+    else
+        printf '%04x%04x-%04x-%04x-%04x-%04x%04x%04x\n' \
+            $((RANDOM)) $((RANDOM)) $((RANDOM)) \
+            $((RANDOM & 0x0fff | 0x4000)) \
+            $((RANDOM & 0x3fff | 0x8000)) \
+            $((RANDOM)) $((RANDOM)) $((RANDOM))
+    fi
+}
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -70,13 +88,13 @@ generate_message() {
 create_test_conversation() {
     local num_messages="$1"
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local prev_uuid="null"
     for i in $(seq 1 "$num_messages"); do
         local uuid
-        uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        uuid=$(gen_uuid)
         local msg_type
         if [ $((i % 2)) -eq 1 ]; then
             msg_type="user"
@@ -306,16 +324,16 @@ test_double_tagging() {
     # 2. Then continued with more messages
     # 3. Now being half-cloned again
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4 uuid5 uuid6
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid5=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid6=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
+    uuid5=$(gen_uuid)
+    uuid6=$(gen_uuid)
 
     # 6 messages = 3 user messages. Half-clone skips 1, keeps 2.
     # So messages 3-6 are kept, and message 3 (2nd user msg) becomes first.
@@ -360,14 +378,14 @@ test_thinking_blocks_stripped() {
 
     # Create a conversation with thinking blocks in assistant messages
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
 
     {
         echo "{\"parentUuid\":null,\"sessionId\":\"${session_id}\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"First question\"},\"uuid\":\"${uuid1}\",\"timestamp\":\"2025-01-01T00:00:00.000Z\"}"
@@ -405,18 +423,18 @@ test_progress_with_nested_user_type() {
     log_test "Progress messages with nested type:user should not count as clean user messages"
 
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4 uuid5 uuid6 uuid7 uuid8
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid5=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid6=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid7=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid8=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
+    uuid5=$(gen_uuid)
+    uuid6=$(gen_uuid)
+    uuid7=$(gen_uuid)
+    uuid8=$(gen_uuid)
 
     # Conversation: U1, A1, progress(nested user), progress(nested user), U2, A2, U3 CORRECT, A3
     # Real clean user messages: U1, U2, U3 = 3. Skip 1, keep 2. Start at U2.
@@ -459,15 +477,15 @@ test_session_config_lines_stripped() {
     log_test "Trailing session-config lines should be stripped from the clone"
 
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4 uuid5
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid5=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
+    uuid5=$(gen_uuid)
 
     # 4 real messages (2 clean user) + trailing session-config lines.
     # last-prompt's leafUuid points at uuid5 (the system line), mimicking the
@@ -579,14 +597,14 @@ test_quarter_token_division() {
     log_test "Quarter: token counts should be divided by 4"
 
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
 
     # 4 messages (2 clean user). Quarter skips 1, keeps 1 - lines 3-4 are kept.
     # The kept assistant message carries usage numbers divisible by 4.
@@ -619,14 +637,14 @@ test_half_token_division() {
     log_test "Half: token counts should still be divided by 2"
 
     local session_id
-    session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    session_id=$(gen_uuid)
     local conv_file="${TEST_PROJECTS_DIR}/${TEST_PROJECT_DIRNAME}/${session_id}.jsonl"
 
     local uuid1 uuid2 uuid3 uuid4
-    uuid1=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid2=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid3=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    uuid4=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    uuid1=$(gen_uuid)
+    uuid2=$(gen_uuid)
+    uuid3=$(gen_uuid)
+    uuid4=$(gen_uuid)
 
     {
         echo "{\"parentUuid\":null,\"sessionId\":\"${session_id}\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Question 1\"},\"uuid\":\"${uuid1}\",\"timestamp\":\"2025-01-01T00:00:00.000Z\"}"
